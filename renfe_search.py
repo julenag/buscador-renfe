@@ -1,9 +1,11 @@
-import os
-import sys
+import json
 import requests
+import time
 import asyncio
 import signal
+import os
 import logging
+import sys
 from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -11,133 +13,141 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
-import asyncpg  # Para acceder a PostgreSQL
 
+BOT_TOKEN = '8088144724:AAEAhC1CZbq6Dtd_hJEZoNdKml58z0h0vlM'
+USERS_PREF_FILE = 'user_preferences.json'
+LOCK_FILE = os.path.join('data', 'renfe_search.lock')
 
-# --- Configuración de logging ---
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler(os.path.join(script_dir, 'logs/renfe_search.log'))
+        logging.FileHandler('logs/renfe_search.log')
     ]
 )
 logger = logging.getLogger(__name__)
 
-# Variable global para el pool de conexiones a la BD
-DB_POOL = None
-
-# --- Funciones para la Base de Datos ---
-async def init_db():
-    global DB_POOL
-    db_url = os.getenv("DATABASE_URL")
-    if not db_url:
-        raise Exception("DATABASE_URL no está configurada")
-    DB_POOL = await asyncpg.create_pool(dsn=db_url)
-    async with DB_POOL.acquire() as connection:
-        await connection.execute('''
-            CREATE TABLE IF NOT EXISTS user_preferences (
-                id SERIAL PRIMARY KEY,
-                chat_id TEXT NOT NULL,
-                origen TEXT NOT NULL,
-                destino TEXT NOT NULL,
-                fecha DATE NOT NULL
-            );
-        ''')
-
-        await connection.execute('''
-            CREATE TABLE IF NOT EXISTS notifications (
-                id SERIAL PRIMARY KEY,
-                chat_id TEXT NOT NULL,
-                origen TEXT NOT NULL,
-                destino TEXT NOT NULL,
-                fecha DATE NOT NULL,
-                message TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                notificacion_enviada BOOLEAN DEFAULT false  -- Agregamos la columna
-            );
-        ''')
-
-
-async def get_all_preferences():
-    """
-    Recupera todas las preferencias de la BD y las agrupa por chat_id.
-    Cada registro se formatea para incluir el ID y la fecha en formato dd/mm/aaaa.
-    """
-    global DB_POOL
-    prefs = {}
+def terminate_other_instances():
+    """Terminate other instances of this script"""
+    current_pid = os.getpid()
     try:
-        async with DB_POOL.acquire() as connection:
-            rows = await connection.fetch("SELECT id, chat_id, origen, destino, fecha FROM user_preferences")
-            for row in rows:
-                chat_id = row['chat_id']
-                if chat_id not in prefs:
-                    prefs[chat_id] = []
-                prefs[chat_id].append({
-                    'id': row['id'],
-                    'origen': row['origen'],
-                    'destino': row['destino'],
-                    'fecha': row['fecha'].strftime("%d/%m/%Y") if row['fecha'] else ""
-                })
-    except Exception as e:
-        logger.error(f"Error al obtener preferencias de la BD: {e}")
-    return prefs
+        import psutil
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                if proc.info['name'] == 'python' and 'renfe_search.py' in ' '.join(proc.info['cmdline'] or []):
+                    if proc.info['pid'] != current_pid:
+                        logger.info(f"Terminating other instance with PID {proc.info['pid']}")
+                        try:
+                            proc.terminate()
+                            proc.wait(timeout=3)  # Wait for graceful termination
+                        except psutil.TimeoutExpired:
+                            logger.warning(f"Force killing process {proc.info['pid']}")
+                            proc.kill()  # Force kill if graceful termination fails
+            except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+                logger.error(f"Error handling process: {e}")
+                continue
+    except ImportError:
+        logger.warning("psutil not available, skipping process termination")
 
-async def delete_preference_by_id(pref_id: int) -> bool:
-    """Elimina de la BD una preferencia según su ID."""
-    global DB_POOL
+def check_lock():
+    """Check if another instance is running"""
     try:
-        async with DB_POOL.acquire() as connection:
-            await connection.execute("DELETE FROM user_preferences WHERE id = $1", pref_id)
+        if os.path.exists(LOCK_FILE):
+            with open(LOCK_FILE, 'r') as f:
+                stored_pid = int(f.read().strip())
+                current_pid = os.getpid()
+
+                if stored_pid == current_pid:
+                    logger.info("Lock file belongs to current process")
+                    return True
+
+                try:
+                    os.kill(stored_pid, 0)
+                    logger.warning(f"Another instance is running with PID {stored_pid}")
+                    return False
+                except OSError:
+                    logger.info(f"Removing stale lock file for PID {stored_pid}")
+                    os.remove(LOCK_FILE)
         return True
     except Exception as e:
-        logger.error(f"Error al eliminar la preferencia ID {pref_id}: {e}")
+        logger.error(f"Error checking lock file: {e}")
         return False
 
-async def save_notification_to_db(chat_id, origen, destino, fecha):
-    """Guarda una notificación en la base de datos."""
-    global DB_POOL
+def create_lock():
+    """Create lock file with current PID"""
+    try:
+        os.makedirs(os.path.dirname(LOCK_FILE), exist_ok=True)
+        current_pid = os.getpid()
+        with open(LOCK_FILE, 'w') as f:
+            f.write(str(current_pid))
+        logger.info(f"Created lock file with PID {current_pid}")
+        return True
+    except Exception as e:
+        logger.error(f"Error creating lock file: {e}")
+        return False
+
+def cleanup(signo=None, frame=None):
+    """Cleanup function for graceful shutdown"""
+    try:
+        if os.path.exists(LOCK_FILE):
+            with open(LOCK_FILE, 'r') as f:
+                stored_pid = int(f.read().strip())
+                if stored_pid == os.getpid():
+                    logger.info("Removing lock file during cleanup")
+                    os.remove(LOCK_FILE)
+    except Exception as e:
+        logger.error(f"Error during cleanup: {e}")
+    finally:
+        sys.exit(0)
+
+# Register signal handlers
+signal.signal(signal.SIGTERM, cleanup)
+signal.signal(signal.SIGINT, cleanup)
+
+def load_preferences():
+    try:
+        with open(USERS_PREF_FILE, 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        logger.warning(f"Preferences file not found: {USERS_PREF_FILE}")
+        return {}
+    except json.JSONDecodeError as e:
+        logger.error(f"Error decoding preferences file: {e}")
+        return {}
+
+def save_preferences(prefs):
+    try:
+        with open(USERS_PREF_FILE, 'w') as f:
+            json.dump(prefs, f, indent=4)
+        return True
+    except Exception as e:
+        logger.error(f"Error saving preferences: {e}")
+        return False
+
+def send_telegram_notification(chat_id, origen, destino, fecha):
     try:
         fecha_formateada = fecha.strftime("%d/%m/%Y")
         message = f"🚄 ¡Hay trenes disponibles!\n\nOrigen: {origen}\nDestino: {destino}\nFecha: {fecha_formateada}"
-        async with DB_POOL.acquire() as connection:
-            await connection.execute('''
-                INSERT INTO notifications (chat_id, origen, destino, fecha, message)
-                VALUES ($1, $2, $3, $4, $5)
-            ''', chat_id, origen, destino, fecha, message)
-        logger.info(f"Notificación guardada para {chat_id}: {message}")
+        response = requests.get(f'https://api.telegram.org/bot{BOT_TOKEN}/sendMessage?chat_id={chat_id}&text={message}')
+        if response.status_code != 200:
+            logger.error(f"Error sending Telegram notification: {response.text}")
     except Exception as e:
-        logger.error(f"Error al guardar notificación en la BD: {e}")
+        logger.error(f"Error in send_telegram_notification: {e}")
 
-# --- Funciones relacionadas con Selenium ---
 def create_driver():
-    """Crea y configura el WebDriver de Chrome."""
     try:
-        chrome_options = Options()
+        chrome_options = webdriver.ChromeOptions()
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--headless")
         chrome_options.add_argument("--window-size=1920,1080")
-
-        chrome_options.binary_location = "/usr/bin/google-chrome"
-        chromedriver_path = "/usr/bin/chromedriver"
-        if not os.path.exists(chromedriver_path):
-            raise FileNotFoundError("Chromedriver no encontrado en /usr/bin/chromedriver")
-
-        service = Service(executable_path=chromedriver_path)
-        driver = webdriver.Chrome(service=service, options=chrome_options)
-        return driver
+        return webdriver.Chrome(options=chrome_options)
     except Exception as e:
-        print(f"Error al crear webdriver: {e}")
+        logger.error(f"Error creating webdriver: {e}")
         return None
 
-
 async def consultar_renfe(origen, destino, fecha_deseada):
-    """Realiza la consulta en Renfe y retorna True si hay billetes disponibles."""
     driver = None
     try:
         driver = create_driver()
@@ -146,68 +156,58 @@ async def consultar_renfe(origen, destino, fecha_deseada):
 
         driver.get("https://www.renfe.com/es/es")
 
-        # Manejo de cookies
         try:
-            cookie_btn = WebDriverWait(driver, 10).until(
+            # Cerrar el mensaje de cookies, si aparece
+            WebDriverWait(driver, 10).until(
                 EC.element_to_be_clickable((By.ID, "onetrust-reject-all-handler"))
-            )
-            cookie_btn.click()
+            ).click()
             logger.info("Cookies rechazadas.")
-            await asyncio.sleep(1)
         except Exception as e:
-            logger.warning(f"Error al manejar cookies: {e}")
+            logger.warning(f"Cookies message not found or could not be closed: {e}")
 
-        # Input de origen
-        origen_input = WebDriverWait(driver, 10).until(
-            EC.visibility_of_element_located((By.ID, "origin"))
-        )
+
+        # Escribir en el input de origen
+        origen_input = WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.ID, "origin")))
         origen_input.clear()
         origen_input.send_keys(origen)
-        WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "(//li[@role='option'])[1]"))
-        ).click()
+        WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "(//li[@role='option'])[1]"))).click()
         logger.info("Origen seleccionado.")
 
-        # Input de destino
-        destino_input = WebDriverWait(driver, 10).until(
-            EC.visibility_of_element_located((By.ID, "destination"))
-        )
+        # Ingresar destino
+        destino_input = WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.ID, "destination")))
         destino_input.clear()
         destino_input.send_keys(destino)
-        await asyncio.sleep(0.5)
-        WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.ID, "awesomplete_list_2_item_0"))
-        ).click()
+        time.sleep(0.5)
+        WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "awesomplete_list_2_item_0"))).click()
         logger.info("Destino seleccionado.")
 
-        # Selección de fecha
-        fecha_input = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.ID, "first-input"))
-        )
+        # Seleccionar la fecha usando flechas
+        fecha_input = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "first-input")))
         fecha_input.click()
-        await asyncio.sleep(1)
+        time.sleep(1)
 
+        # Calcular la diferencia de días entre hoy y la fecha deseada
         hoy = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         fecha_obj = datetime.strptime(fecha_deseada, "%d/%m/%Y")
         dias_faltantes = (fecha_obj - hoy).days
 
         for _ in range(dias_faltantes):
             fecha_input.send_keys(Keys.ARROW_RIGHT)
-            await asyncio.sleep(0.1)
+            time.sleep(0.1)
         fecha_input.send_keys(Keys.ARROW_UP)
         logger.info("Fecha seleccionada.")
 
-        # Botón Aceptar
+        # Clic en "Aceptar"
         try:
             aceptar_btn = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Aceptar')]"))
+                EC.element_to_be_clickable((By.XPATH, "//button[@type='button' and text()='Aceptar']"))
             )
             ActionChains(driver).move_to_element(aceptar_btn).click().perform()
             logger.info("Botón 'Aceptar' clicado.")
         except Exception as e:
-            logger.warning(f"Error al clicar 'Aceptar': {e}")
+            logger.warning(f"Error al hacer clic en 'Aceptar': {e}")
 
-        # Botón Buscar billete
+        # Buscar billetes
         try:
             buscar_btn = WebDriverWait(driver, 10).until(
                 EC.element_to_be_clickable((By.XPATH, "//button[@title='Buscar billete']"))
@@ -215,102 +215,105 @@ async def consultar_renfe(origen, destino, fecha_deseada):
             ActionChains(driver).move_to_element(buscar_btn).click().perform()
             logger.info("Botón 'Buscar billete' clicado.")
         except Exception as e:
-            logger.error(f"Error al buscar billete: {e}")
-            return False
+            logger.error(f"Error al hacer clic en 'Buscar billete': {e}")
 
-        await asyncio.sleep(5)
+        # Esperar a que cargue la página de resultados
+        time.sleep(5)
 
-        # Verificar disponibilidad
+        # Verificar la disponibilidad
         try:
             WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.ID, "noDispoIda"))
             )
-            logger.info("No hay billetes disponibles.")
+            logger.info("No hay billetes disponibles para estos parámetros.")
             return False
         except Exception:
             logger.info("¡Billetes disponibles!")
             return True
 
     except Exception as e:
-        logger.error(f"Error en consultar_renfe: {e}")
+        logger.error(f"Error in consultar_renfe: {e}")
         return False
     finally:
         if driver:
             try:
                 driver.quit()
-            except Exception as e:
-                logger.error(f"Error al cerrar driver: {e}")
+            except:
+                pass
 
 async def run_search_loop():
-    """Bucle principal que consulta periódicamente la disponibilidad."""
+    """Main search loop with error handling and recovery"""
     while True:
         try:
-            prefs = await get_all_preferences()
-            for chat_id, solicitudes in prefs.items():
-                for solicitud in solicitudes:
+            prefs = load_preferences()
+            users = list(prefs.items())
+
+            for chat_id, solicitudes in users:
+                for solicitud in list(solicitudes):  # Make a copy of the list for iteration
                     origen = solicitud.get("origen")
                     destino = solicitud.get("destino")
                     fecha_deseada = solicitud.get("fecha")
 
                     if not all([origen, destino, fecha_deseada]):
-                        logger.warning(f"Parámetros inválidos para {chat_id}")
+                        logger.warning(f"Invalid search parameters for user {chat_id}")
                         continue
 
-                    logger.info(f"Verificando {chat_id}: {origen} - {destino} - {fecha_deseada}")
+                    logger.info(f"Checking for user {chat_id}: {origen} - {destino} - {fecha_deseada}")
 
                     try:
-                        # Consultar disponibilidad de billetes
                         if await consultar_renfe(origen, destino, fecha_deseada):
-                            # Si hay billetes disponibles, guardar la notificación en la BD
-                            await save_notification_to_db(
-                                chat_id,
-                                origen,
-                                destino,
-                                datetime.strptime(fecha_deseada, "%d/%m/%Y")
-                            )
-                            # Eliminar la preferencia una vez que se ha encontrado un billete
-                            await delete_preference_by_id(solicitud['id'])
+                            send_telegram_notification(chat_id, origen, destino, 
+                                                        datetime.strptime(fecha_deseada, "%d/%m/%Y"))
+                            solicitudes.remove(solicitud)
+                            save_preferences(prefs)
                     except Exception as e:
-                        logger.error(f"Error procesando {chat_id}: {e}")
+                        logger.error(f"Error processing search for user {chat_id}: {e}")
+                        continue
 
-            logger.info("Ciclo de búsqueda completado.")
-            await asyncio.sleep(30)
+            logger.info("Completed search cycle, waiting for next iteration...")
+            await asyncio.sleep(60)  # 10 minutes
 
         except Exception as e:
-            logger.error(f"Error en el bucle principal: {e}")
-            await asyncio.sleep(300)
-
+            logger.error(f"Error in search loop: {e}")
+            await asyncio.sleep(300)  # 5 minutes on error
 
 async def main():
+    """Main function with improved startup checks"""
     try:
+        # Try to terminate other instances first
         terminate_other_instances()
-        await asyncio.sleep(5)
+
+        # Wait for other instances to fully terminate
+        await asyncio.sleep(5)  # Increased wait time
 
         if not check_lock():
-            logger.error("Otra instancia en ejecución. Saliendo.")
+            logger.error("Another instance is still running. Exiting.")
             return
 
         if not create_lock():
-            logger.error("Error creando lock file. Saliendo.")
+            logger.error("Could not create lock file. Exiting.")
             return
 
-        # Inicializar la conexión a la BD
-        await init_db()
+        logger.info(f"Starting Renfe search service with PID {os.getpid()}")
 
-        logger.info(f"Iniciando servicio con PID {os.getpid()}")
-        await run_search_loop()
+        try:
+            await run_search_loop()
+        except Exception as e:
+            logger.error(f"Search loop error: {e}")
+        finally:
+            cleanup()
 
     except Exception as e:
-        logger.error(f"Error fatal: {e}")
+        logger.error(f"Fatal error in main: {e}")
     finally:
         cleanup()
 
 if __name__ == '__main__':
     try:
-        loop = asyncio.get_event_loop()
-        loop.create_task(main())  # Agregar la tarea principal al bucle de eventos actual
-        loop.run_forever()  # Mantener el ciclo de eventos ejecutándose
-    except (KeyboardInterrupt, SystemExit):
-        logger.info("Interrupción recibida, saliendo...")
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Received keyboard interrupt")
+    except Exception as e:
+        logger.error(f"Unhandled error: {e}")
     finally:
         cleanup()
