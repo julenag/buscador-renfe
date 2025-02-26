@@ -18,9 +18,6 @@ RUN apt-get update && apt-get install -y \
     gnupg2 \
     && apt-get clean
 
-# Eliminar cualquier versión anterior de Google Chrome (por si acaso)
-RUN apt-get remove --purge -y google-chrome-stable
-
 # Descargar e instalar Google Chrome versión 114
 RUN wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
     apt-get update && \
@@ -53,4 +50,3 @@ RUN mkdir /app/logs
 
 # Ejecutar el script principal con Python
 CMD ["python", "renfe_search.py"]
-
