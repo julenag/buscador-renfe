@@ -16,18 +16,18 @@ RUN apt-get update && apt-get install -y \
     lsb-release \
     && apt-get clean
 
-# (Omitir la actualización de pip, ya que puede generar errores en este entorno)
-# RUN python3 -m pip install --upgrade pip setuptools wheel
-
 # Establecer el directorio de trabajo
 WORKDIR /app
 
-# Copiar el archivo requirements.txt y el código fuente a la imagen
+# Copiar requirements.txt y mostrar su contenido para depuración
 COPY requirements.txt /app/requirements.txt
+RUN echo "Contenido de requirements.txt:" && cat /app/requirements.txt
+
+# Copiar el resto del código fuente
 COPY . /app
 
-# Instalar las dependencias de Python (modo verbose para obtener más detalles en los logs)
-RUN python3 -m pip install --no-cache-dir -v -r requirements.txt
+# Instalar las dependencias de Python redirigiendo la salida a un archivo de log para depuración
+RUN python3 -m pip install --no-cache-dir -r requirements.txt > install.log 2>&1 && cat install.log
 
 # Comando para ejecutar el script principal
 CMD ["python3", "renfe_search.py"]
