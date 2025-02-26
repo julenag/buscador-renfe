@@ -18,11 +18,11 @@ RUN apt-get update && apt-get install -y \
     gnupg2 \
     && apt-get clean
 
-# Descargar e instalar Google Chrome versión 114
-RUN wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
+# Descargar e instalar Google Chrome versión 114 (especifica la versión)
+RUN wget https://dl.google.com/linux/direct/google-chrome-stable_114.0.5735.90-1_amd64.deb && \
     apt-get update && \
-    apt-get install -y ./google-chrome-stable_current_amd64.deb && \
-    rm google-chrome-stable_current_amd64.deb && \
+    apt-get install -y ./google-chrome-stable_114.0.5735.90-1_amd64.deb && \
+    rm google-chrome-stable_114.0.5735.90-1_amd64.deb && \
     apt-get clean
 
 # Verificar la versión de Google Chrome instalada
