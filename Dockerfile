@@ -25,6 +25,9 @@ RUN wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.d
     rm google-chrome-stable_current_amd64.deb && \
     apt-get clean
 
+# Verificar la versión de Google Chrome instalada
+RUN google-chrome-stable --version
+
 # Instalar ChromeDriver compatible con Google Chrome 114
 RUN CHROME_DRIVER_VERSION=114.0.5735.90 && \
     wget https://chromedriver.storage.googleapis.com/${CHROME_DRIVER_VERSION}/chromedriver_linux64.zip && \
