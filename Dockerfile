@@ -18,12 +18,12 @@ RUN apt-get update && apt-get install -y \
     gnupg2 \
     && apt-get clean
 
-# Agregar el repositorio oficial de Google Chrome
-RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && echo "deb [signed-by=/usr/share/keyrings/google-archive-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list
-
-# Instalar Google Chrome
-RUN apt-get update && apt-get install -y google-chrome-stable && apt-get clean
+# Descargar e instalar Google Chrome desde el archivo .deb
+RUN wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
+    apt-get update && \
+    apt-get install -y ./google-chrome-stable_current_amd64.deb && \
+    rm google-chrome-stable_current_amd64.deb && \
+    apt-get clean
 
 # Instalar ChromeDriver
 RUN CHROME_DRIVER_VERSION=$(curl -sS chromedriver.storage.googleapis.com/LATEST_RELEASE) && \
