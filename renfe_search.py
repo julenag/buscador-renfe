@@ -12,6 +12,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.chrome.options import Options
 import asyncpg
 
 BOT_TOKEN = '8088144724:AAEAhC1CZbq6Dtd_hJEZoNdKml58z0h0vlM' 
@@ -163,11 +164,16 @@ def send_telegram_notification(chat_id, origen, destino, fecha):
 
 def create_driver():
     try:
-        chrome_options = webdriver.ChromeOptions()
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")  # Esto asegura que Chrome se ejecute sin interfaz gráfica
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--window-size=1920,1080")
-        return webdriver.Chrome(options=chrome_options)
+        chrome_options.add_argument("--disable-gpu")  # Opcional, a veces necesario en entornos de servidor
+        chrome_options.add_argument("--remote-debugging-port=9222")  # Necesario para DevToolsActivePort
+        chrome_options.add_argument("--window-size=1920x1080")  # Establecer tamaño de ventana
+
+        driver = webdriver.Chrome(options=chrome_options)
+        return driver
     except Exception as e:
         logger.error(f"Error creating webdriver: {e}")
         return None
