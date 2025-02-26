@@ -20,6 +20,9 @@ from webdriver_manager.chrome import ChromeDriverManager
 BOT_TOKEN = '8088144724:AAEAhC1CZbq6Dtd_hJEZoNdKml58z0h0vlM' 
 LOCK_FILE = os.path.join('data', 'renfe_search.lock')
 
+# Crear el directorio 'logs' si no existe
+os.makedirs('logs', exist_ok=True)
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -29,6 +32,7 @@ logging.basicConfig(
         logging.FileHandler('logs/renfe_search.log')
     ]
 )
+
 logger = logging.getLogger(__name__)
 
 async def get_db_connection():
