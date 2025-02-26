@@ -1,36 +1,47 @@
-# Usar la imagen oficial de Python 3.11
-FROM python:3.11-slim
+FROM python:3.12-slim
 
-# Cambiar a usuario root para instalar paquetes del sistema
-USER root
-
-# Actualizar e instalar python3-pip, herramientas de compilación y librerías de desarrollo necesarias
+# Instalación de dependencias y Google Chrome
 RUN apt-get update && apt-get install -y \
-    build-essential \
-    python3-dev \
-    libffi-dev \
-    libssl-dev \
-    libxml2-dev \
-    libxslt1-dev \
-    lsb-release \
-    && apt-get clean
+    wget \
+    curl \
+    gnupg2 \
+    ca-certificates \
+    libx11-dev \
+    libx11-xcb1 \
+    libxcomposite1 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
+    libnss3 \
+    libxss1 \
+    libappindicator3-1 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libgtk-3-0 \
+    libdbus-1-3 \
+    libxtst6 \
+    libgbm-dev \
+    xdg-utils \
+    --no-install-recommends \
+    && wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \
+    && echo "deb [arch=amd64] https://dl.google.com/linux/chrome/deb/ stable main" | tee -a /etc/apt/sources.list.d/google-chrome.list \
+    && apt-get update \
+    && apt-get install -y google-chrome-stable
 
 # Establecer el directorio de trabajo
 WORKDIR /app
 
-# Copiar el archivo requirements.txt y el resto del código fuente a la imagen
-COPY requirements.txt /app/requirements.txt
-COPY . /app
+# Copiar los archivos de dependencias
+COPY requirements.txt .
 
-# Verificar que pip está instalado correctamente y qué versiones de Python y pip están disponibles
-RUN python3 --version
-RUN python3 -m pip --version
+# Instalar dependencias de Python
+RUN python3 -m pip install --no-cache-dir -r requirements.txt
 
-# Crear un archivo de log vacío antes de intentar instalar las dependencias
-RUN touch install.log
+# Copiar el código del proyecto
+COPY . .
 
-# Instalar las dependencias de Python y redirigir los logs a install.log
-RUN python3 -m pip install --no-cache-dir -v -r requirements.txt > install.log 2>&1 || (cat install.log && exit 1)
+# Crear el directorio de logs
+RUN mkdir -p /app/logs
 
-# Comando para ejecutar el script principal
+# Establecer el comando para ejecutar el script
 CMD ["python3", "renfe_search.py"]
