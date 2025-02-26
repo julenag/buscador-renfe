@@ -1,4 +1,3 @@
-import json
 import requests
 import time
 import asyncio
@@ -13,9 +12,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
+import asyncpg
 
-BOT_TOKEN = '8088144724:AAEAhC1CZbq6Dtd_hJEZoNdKml58z0h0vlM'
-USERS_PREF_FILE = 'user_preferences.json'
+BOT_TOKEN = '8088144724:AAEAhC1CZbq6Dtd_hJEZoNdKml58z0h0vlM' 
 LOCK_FILE = os.path.join('data', 'renfe_search.lock')
 
 # Configure logging
@@ -28,6 +27,52 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+async def get_db_connection():
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        raise Exception("DATABASE_URL no está configurada")
+    return await asyncpg.create_pool(dsn=db_url)
+
+async def load_preferences():
+    """Carga las preferencias de los usuarios desde la base de datos."""
+    try:
+        db_pool = await get_db_connection()
+        async with db_pool.acquire() as connection:
+            result = await connection.fetch('''
+                SELECT chat_id, origen, destino, fecha FROM user_preferences
+            ''')
+            prefs = {}
+            for row in result:
+                if row['chat_id'] not in prefs:
+                    prefs[row['chat_id']] = []
+                prefs[row['chat_id']].append({
+                    'origen': row['origen'],
+                    'destino': row['destino'],
+                    'fecha': row['fecha'].strftime("%d/%m/%Y")
+                })
+            return prefs
+    except Exception as e:
+        logger.error(f"Error cargando preferencias: {e}")
+        return {}
+
+async def save_preferences(prefs):
+    """Guardar las preferencias en la base de datos."""
+    try:
+        db_pool = await get_db_connection()
+        async with db_pool.acquire() as connection:
+            for chat_id, solicitudes in prefs.items():
+                for solicitud in solicitudes:
+                    # Aquí puedes guardar o actualizar las preferencias si es necesario
+                    await connection.execute('''
+                        INSERT INTO user_preferences (chat_id, origen, destino, fecha)
+                        VALUES ($1, $2, $3, $4)
+                        ON CONFLICT (chat_id, origen, destino, fecha) DO NOTHING
+                    ''', chat_id, solicitud['origen'], solicitud['destino'], solicitud['fecha'])
+            return True
+    except Exception as e:
+        logger.error(f"Error guardando preferencias: {e}")
+        return False
 
 def terminate_other_instances():
     """Terminate other instances of this script"""
@@ -105,26 +150,6 @@ def cleanup(signo=None, frame=None):
 # Register signal handlers
 signal.signal(signal.SIGTERM, cleanup)
 signal.signal(signal.SIGINT, cleanup)
-
-def load_preferences():
-    try:
-        with open(USERS_PREF_FILE, 'r') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        logger.warning(f"Preferences file not found: {USERS_PREF_FILE}")
-        return {}
-    except json.JSONDecodeError as e:
-        logger.error(f"Error decoding preferences file: {e}")
-        return {}
-
-def save_preferences(prefs):
-    try:
-        with open(USERS_PREF_FILE, 'w') as f:
-            json.dump(prefs, f, indent=4)
-        return True
-    except Exception as e:
-        logger.error(f"Error saving preferences: {e}")
-        return False
 
 def send_telegram_notification(chat_id, origen, destino, fecha):
     try:
@@ -245,7 +270,7 @@ async def run_search_loop():
     """Main search loop with error handling and recovery"""
     while True:
         try:
-            prefs = load_preferences()
+            prefs = await load_preferences()
             users = list(prefs.items())
 
             for chat_id, solicitudes in users:
@@ -265,7 +290,7 @@ async def run_search_loop():
                             send_telegram_notification(chat_id, origen, destino, 
                                                         datetime.strptime(fecha_deseada, "%d/%m/%Y"))
                             solicitudes.remove(solicitud)
-                            save_preferences(prefs)
+                            await save_preferences(prefs)
                     except Exception as e:
                         logger.error(f"Error processing search for user {chat_id}: {e}")
                         continue
