@@ -19,12 +19,12 @@ RUN apt-get update && apt-get install -y \
     lsb-release \
     && apt-get clean
 
-# Añadir repositorio de Google Chrome e instalar la versión estable más reciente
-RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - && \
-    DISTRO=$(lsb_release -c | awk '{print $2}') && \
-    echo "deb [signed-by=/usr/share/keyrings/google-archive-keyring.gpg] https://dl.google.com/linux/chrome/deb/ stable main" | tee /etc/apt/sources.list.d/google-chrome.list && \
+# Instalar Google Chrome directamente desde el repositorio de Google
+RUN wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
     apt-get update && \
-    apt-get install -y google-chrome-stable
+    apt-get install -y ./google-chrome-stable_current_amd64.deb && \
+    rm google-chrome-stable_current_amd64.deb && \
+    apt-get clean
 
 # Verificar la versión de Google Chrome instalada
 RUN google-chrome-stable --version
