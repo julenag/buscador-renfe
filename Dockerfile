@@ -1,12 +1,11 @@
-# Usar la imagen oficial de Selenium con Chrome preinstalado
-FROM selenium/standalone-chrome:latest
+# Usar la imagen oficial de Python 3.11
+FROM python:3.11-slim
 
 # Cambiar a usuario root para instalar paquetes del sistema
 USER root
 
 # Actualizar e instalar python3-pip, herramientas de compilación y librerías de desarrollo necesarias
 RUN apt-get update && apt-get install -y \
-    python3-pip \
     build-essential \
     python3-dev \
     libffi-dev \
@@ -27,8 +26,11 @@ COPY . /app
 RUN python3 --version
 RUN python3 -m pip --version
 
-# Instalar las dependencias de Python con mayor detalle y redirigiendo los logs para la depuración
-RUN python3 -m pip install --no-cache-dir -v -r requirements.txt || (cat install.log && exit 1)
+# Crear un archivo de log vacío antes de intentar instalar las dependencias
+RUN touch install.log
+
+# Instalar las dependencias de Python y redirigir los logs a install.log
+RUN python3 -m pip install --no-cache-dir -v -r requirements.txt > install.log 2>&1 || (cat install.log && exit 1)
 
 # Comando para ejecutar el script principal
 CMD ["python3", "renfe_search.py"]
