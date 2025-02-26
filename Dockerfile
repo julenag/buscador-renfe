@@ -23,8 +23,8 @@ WORKDIR /app
 COPY requirements.txt /app/requirements.txt
 COPY . /app
 
-# Instalar las dependencias de Python usando el resolvedor legado (útil en algunos casos)
-RUN python3 -m pip install --no-cache-dir --use-deprecated=legacy-resolver -r requirements.txt
+# Instalar las dependencias de Python sin flags adicionales
+RUN python3 -m pip install --no-cache-dir -r requirements.txt
 
 # Comando para ejecutar el script principal
 CMD ["python3", "renfe_search.py"]
