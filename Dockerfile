@@ -1,9 +1,13 @@
 # Usar la imagen oficial de Selenium con Chrome preinstalado
 FROM selenium/standalone-chrome:latest
 
-# Instalar dependencias de Python
+# Instalar dependencias de Python y otros paquetes del sistema
 USER root
-RUN apt-get update && apt-get install -y python3-pip
+RUN apt-get update && apt-get install -y python3-pip \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev
 
 # Crear el directorio de trabajo en la imagen
 WORKDIR /app
