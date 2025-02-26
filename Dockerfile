@@ -19,15 +19,12 @@ RUN apt-get update && apt-get install -y \
 # Establecer el directorio de trabajo
 WORKDIR /app
 
-# Copiar requirements.txt y mostrar su contenido para depuración
+# Copiar el archivo requirements.txt y el resto del código fuente a la imagen
 COPY requirements.txt /app/requirements.txt
-RUN echo "Contenido de requirements.txt:" && cat /app/requirements.txt
-
-# Copiar el resto del código fuente
 COPY . /app
 
-# Instalar las dependencias de Python redirigiendo la salida a un archivo de log para depuración
-RUN python3 -m pip install --no-cache-dir -r requirements.txt > install.log 2>&1 && cat install.log
+# Instalar las dependencias de Python usando el resolvedor legado (útil en algunos casos)
+RUN python3 -m pip install --no-cache-dir --use-deprecated=legacy-resolver -r requirements.txt
 
 # Comando para ejecutar el script principal
 CMD ["python3", "renfe_search.py"]
