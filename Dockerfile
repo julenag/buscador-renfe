@@ -18,15 +18,15 @@ RUN apt-get update && apt-get install -y \
     gnupg2 \
     && apt-get clean
 
-# Descargar e instalar Google Chrome desde el archivo .deb
+# Descargar e instalar Google Chrome (versión 114)
 RUN wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
     apt-get update && \
     apt-get install -y ./google-chrome-stable_current_amd64.deb && \
     rm google-chrome-stable_current_amd64.deb && \
     apt-get clean
 
-# Instalar ChromeDriver
-RUN CHROME_DRIVER_VERSION=$(curl -sS chromedriver.storage.googleapis.com/LATEST_RELEASE) && \
+# Instalar ChromeDriver compatible con Google Chrome 114
+RUN CHROME_DRIVER_VERSION=114.0.5735.90 && \
     wget https://chromedriver.storage.googleapis.com/${CHROME_DRIVER_VERSION}/chromedriver_linux64.zip && \
     unzip chromedriver_linux64.zip && \
     mv chromedriver /usr/bin/ && \
