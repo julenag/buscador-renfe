@@ -172,8 +172,10 @@ def create_driver():
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--disable-gpu")  # Opcional, a veces necesario en servidores
 
-        # Usar webdriver-manager para obtener la versión correcta de ChromeDriver
-        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+        # Especifica la ruta del chromedriver descargado
+        service = Service("/path/to/chromedriver")  # Cambia esta ruta
+
+        driver = webdriver.Chrome(service=service, options=chrome_options)
         return driver
     except Exception as e:
         logger.error(f"Error creando el WebDriver: {e}")
