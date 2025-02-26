@@ -170,10 +170,10 @@ def create_driver():
         chrome_options.add_argument("--headless")  # Ejecutar sin interfaz gráfica
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--disable-gpu")  # Opcional, a veces necesario en servidores
+        chrome_options.add_argument("--disable-gpu")
 
-        # Especifica la ruta del chromedriver descargado
-        service = Service("/path/to/chromedriver")  # Cambia esta ruta
+        # Usar webdriver-manager para gestionar el chromedriver
+        service = Service(ChromeDriverManager().install())
 
         driver = webdriver.Chrome(service=service, options=chrome_options)
         return driver
