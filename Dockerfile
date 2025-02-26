@@ -4,7 +4,7 @@ FROM selenium/standalone-chrome:latest
 # Cambiar a usuario root para instalar paquetes del sistema
 USER root
 
-# Actualizar e instalar python3-pip, herramientas de compilación y librerías de desarrollo
+# Actualizar e instalar python3-pip, herramientas de compilación y librerías de desarrollo necesarias
 RUN apt-get update && apt-get install -y \
     python3-pip \
     build-essential \
@@ -13,10 +13,11 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     libxml2-dev \
     libxslt1-dev \
+    lsb-release \
     && apt-get clean
 
-# Actualizar pip a la versión más reciente
-RUN python3 -m pip install --upgrade pip
+# (Omitir la actualización de pip, ya que puede generar errores en este entorno)
+# RUN python3 -m pip install --upgrade pip setuptools wheel
 
 # Establecer el directorio de trabajo
 WORKDIR /app
@@ -25,10 +26,7 @@ WORKDIR /app
 COPY requirements.txt /app/requirements.txt
 COPY . /app
 
-# (Opcional) Mostrar el contenido de requirements.txt para ver qué se está instalando
-RUN cat requirements.txt
-
-# Instalar las dependencias de Python (modo verbose para mayor detalle en los logs)
+# Instalar las dependencias de Python (modo verbose para obtener más detalles en los logs)
 RUN python3 -m pip install --no-cache-dir -v -r requirements.txt
 
 # Comando para ejecutar el script principal
