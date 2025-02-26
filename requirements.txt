@@ -1,4 +1,5 @@
-selenium==4.9.1
-asyncpg==0.27.0
-webdriver-manager==3.8.6
+selenium==4.8.0
+webdriver-manager==3.8.0
 requests
+asyncpg==0.27.0
+
