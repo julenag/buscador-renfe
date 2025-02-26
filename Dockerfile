@@ -16,20 +16,21 @@ RUN apt-get update && apt-get install -y \
     libxtst6 \
     xdg-utils \
     gnupg2 \
+    lsb-release \
     && apt-get clean
 
-# Descargar e instalar Google Chrome versión 114 (especifica la versión)
-RUN wget https://dl.google.com/linux/direct/google-chrome-stable_114.0.5735.90-1_amd64.deb && \
+# Añadir repositorio de Google Chrome e instalar la versión estable más reciente
+RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - && \
+    DISTRO=$(lsb_release -c | awk '{print $2}') && \
+    echo "deb [signed-by=/usr/share/keyrings/google-archive-keyring.gpg] https://dl.google.com/linux/chrome/deb/ stable main" | tee /etc/apt/sources.list.d/google-chrome.list && \
     apt-get update && \
-    apt-get install -y ./google-chrome-stable_114.0.5735.90-1_amd64.deb && \
-    rm google-chrome-stable_114.0.5735.90-1_amd64.deb && \
-    apt-get clean
+    apt-get install -y google-chrome-stable
 
 # Verificar la versión de Google Chrome instalada
 RUN google-chrome-stable --version
 
-# Descargar e instalar ChromeDriver 114 compatible con Google Chrome 114
-RUN CHROME_DRIVER_VERSION=114.0.5735.90 && \
+# Descargar e instalar ChromeDriver compatible con la versión actual de Google Chrome
+RUN CHROME_DRIVER_VERSION=$(curl -sS chromedriver.storage.googleapis.com/LATEST_RELEASE) && \
     wget https://chromedriver.storage.googleapis.com/${CHROME_DRIVER_VERSION}/chromedriver_linux64.zip && \
     unzip chromedriver_linux64.zip && \
     mv chromedriver /usr/bin/ && \
