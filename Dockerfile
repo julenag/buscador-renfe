@@ -23,8 +23,8 @@ WORKDIR /app
 COPY requirements.txt /app/requirements.txt
 COPY . /app
 
-# Instalar las dependencias de Python sin flags adicionales
-RUN python3 -m pip install --no-cache-dir -r requirements.txt
+# Instalar las dependencias de Python con mayor detalle y redirigiendo los logs para la depuración
+RUN python3 -m pip install --no-cache-dir -v -r requirements.txt > install.log 2>&1 || (cat install.log && exit 1)
 
 # Comando para ejecutar el script principal
 CMD ["python3", "renfe_search.py"]
