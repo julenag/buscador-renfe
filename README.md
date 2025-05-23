@@ -47,7 +47,7 @@ En el script `renfe_notifier.py`, modifica:
 
 ```python
 BOT_TOKEN = 'TU_TOKEN_DE_TELEGRAM_AQUI'
-SHEET_CSV_URL = "URL_PUBLICA_DE_TU_CSV"
+SHEET_CSV_URL = "URL_PUBLICA_DE_TU_CSV"```
 
 ---
 
