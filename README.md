@@ -1,4 +1,4 @@
-# Renfe Ticket Availability Notifier
+# Notificador de Disponibilidad de Billetes Renfe
 
 Este script automatiza la búsqueda de billetes disponibles en Renfe para varios usuarios, leyendo sus preferencias desde un CSV público de Google Sheets. 
 Esto permite compartir el archivo de Google Sheets para que otras personas lo modifiquen y puedan recibir alertas para los trenes que les interesan.
