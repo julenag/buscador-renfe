@@ -47,20 +47,20 @@ En el script `renfe_notifier.py`, modifica:
 
 ```python
 BOT_TOKEN = 'TU_TOKEN_DE_TELEGRAM_AQUI'
-SHEET_CSV_URL = "URL_PUBLICA_DE_TU_CSV"```
+SHEET_CSV_URL = "URL_PUBLICA_DE_TU_CSV"
 
----
 
-## Requisitos
+# Requisitos
+Python 3.8+
 
-- Python 3.8+
-- Google Chrome instalado (compatible con el ChromeDriver)
-- ChromeDriver en el PATH (o ruta configurada)
-- Librerías Python:
-  - `selenium`
-  - `requests`
+Google Chrome instalado (compatible con el ChromeDriver)
+
+ChromeDriver en el PATH (o ruta configurada)
+
+Librerías Python:
+
+selenium
+
+requests
 
 Instalación rápida de dependencias:
-
-```bash
-pip install selenium requests
