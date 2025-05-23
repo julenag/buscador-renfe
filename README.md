@@ -10,7 +10,7 @@ Si detecta disponibilidad para alguna ruta y fecha, envía una notificación ví
 - El script descarga un CSV público que debe estar alojado en Google Sheets y compartido con las personas que quieras que puedan usar las alertas.
 - Cada persona que tenga acceso al CSV puede agregar sus preferencias de viajes con su `chat_id` de Telegram para recibir alertas personalizadas.
 - El script procesa todas las solicitudes, consulta disponibilidad y notifica solo si hay billetes.
-- Está pensado para ejecutarse de forma periódica (por ejemplo, cada hora o cada día) usando un programador de tareas, de modo que las alertas se actualicen y envíen automáticamente. Esta configuración evita tener que usar un servidor para hostear tanto el buscador de billetes como un bot que gestione las interacciones con los usuarios.
+- Está pensado para ejecutarse localmente de forma periódica (por ejemplo, cada hora o cada día) usando un programador de tareas, de modo que las alertas se actualicen y envíen automáticamente. Esta configuración evita tener que usar un servidor para hostear tanto el buscador de billetes como un bot que gestione las interacciones con los usuarios.
 
 ---
 ## Características del script
