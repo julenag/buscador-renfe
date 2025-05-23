@@ -43,7 +43,7 @@ Si detecta disponibilidad para alguna ruta y fecha, envía una notificación ví
 
 3. **Editar el script**
 
-En el script `renfe_notifier.py`, modifica:
+En el script `renfe_search.py`, modifica:
 
 ```python
 BOT_TOKEN = 'TU_TOKEN_DE_TELEGRAM_AQUI'
